@@ -166,7 +166,7 @@ LEVELS: List[LevelConfig] = [
         good_prob=0.62,
         max_items=14,
         girl_speed=900,
-        item_size=(36, 36),
+        item_size=(50, 50),
         backgrounds=[
             BgStage("bg_0.png", "bg_0.ogg", (30, 30, 40)),
             BgStage("bg_20.png",  "bg_20.ogg",  (35,45,70)),
@@ -186,7 +186,7 @@ LEVELS: List[LevelConfig] = [
         good_prob=0.5,
         max_items=18,
         girl_speed=1100,
-        item_size=(34, 34),
+        item_size=(50, 50),
         backgrounds=[
             BgStage("l2_bg_0.png",   "l2_0.ogg",   (28,20,28)),
             BgStage("l2_bg_20.png",  "l2_20.ogg",  (38,28,52)),
@@ -208,7 +208,7 @@ LEVELS: List[LevelConfig] = [
         good_prob=0.5,
         max_items=20,
         girl_speed=1200,
-        item_size=(36, 36),
+        item_size=(50, 50),
         backgrounds=[
             BgStage("l3_bg_0.png",   "l3_0.ogg",   (22,26,34)),
             BgStage("l3_bg_20.png",  "l3_20.ogg",  (30,34,62)),
@@ -230,7 +230,7 @@ LEVELS: List[LevelConfig] = [
         good_prob=0.48,
         max_items=22,
         girl_speed=1300,
-        item_size=(34, 34),
+        item_size=(50, 50),
         backgrounds=[
             BgStage("l4_bg_0.png",   "l4_0.ogg",   (16,18,28)),
             BgStage("l4_bg_20.png",  "l4_20.ogg",  (28,26,58)),
@@ -252,7 +252,7 @@ LEVELS: List[LevelConfig] = [
         good_prob=0.46,
         max_items=24,
         girl_speed=1400,
-        item_size=(32, 32),
+        item_size=(50, 50),
         backgrounds=[
             BgStage("l5_bg_0.png",   "l5_0.ogg",   (12,12,22)),
             BgStage("l5_bg_20.png",  "l5_20.ogg",  (24,22,48)),
@@ -268,13 +268,13 @@ LEVELS: List[LevelConfig] = [
     # Level 6: SPECIAL LEVEL (Fruit Ninja style)
     LevelConfig(
         name="SPECIAL LEVEL",
-        spawn_interval_ms=500,                 # used differently
+        spawn_interval_ms=950,                 # used differently
         fall_speed_range=(600, 900),           # used as base for throw
         printer_speed=0,                       # not used
         good_prob=0.5,
         max_items=8,
         girl_speed=1100,                       # not used
-        item_size=(40, 40),                    # visual scaling for special
+        item_size=(70, 70),                    # visual scaling for special
         backgrounds=[
             BgStage("special_bg_0.png",   "special_0.ogg",   (16,16,20)),
             BgStage("special_bg_20.png",  "special_20.ogg",  (24,28,44)),
