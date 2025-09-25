@@ -1,0 +1,791 @@
+import pygame
+import sys
+import random
+import os
+from dataclasses import dataclass
+from typing import List, Tuple, Optional, Dict
+
+# --------------------- init ---------------------
+pygame.init()
+pygame.mixer.init()
+pygame.display.set_caption("Catch Progress")
+
+# Virtual game resolution
+VIRTUAL_W, VIRTUAL_H = 1920, 1080
+TOP_BAR_H = 96
+
+# Real screen in fullscreen
+def make_fullscreen():
+    info = pygame.display.Info()
+    return pygame.display.set_mode((info.current_w, info.current_h), pygame.FULLSCREEN)
+
+SCREEN = make_fullscreen()
+SCREEN_W, SCREEN_H = SCREEN.get_size()
+
+# We render everything to this surface, then scale to the real screen
+GAME_SURF = pygame.Surface((VIRTUAL_W, VIRTUAL_H)).convert_alpha()
+CLOCK = pygame.time.Clock()
+FPS = 60
+
+# --------------------- fonts ---------------------
+def font(size): return pygame.font.SysFont(None, size)
+FONT_XL = font(96)
+FONT_BIG = font(56)
+FONT_MED = font(36)
+FONT_SM = font(28)
+FONT_TINY = font(20)
+
+# --------------------- colors ---------------------
+WHITE = (255, 255, 255)
+BLACK = (12, 12, 12)
+GRAY = (60, 60, 60)
+GREEN = (60, 200, 90)
+RED = (230, 70, 70)
+YELLOW = (255, 210, 60)
+BLUE = (80, 140, 255)
+CYAN = (90, 230, 230)
+MAGENTA = (220, 90, 220)
+ORANGE = (255, 160, 60)
+PURPLE = (150, 100, 220)
+GOLD = (255, 215, 0)
+
+# --------------------- powerups ---------------------
+# Use the exact names you wanted
+PU_MORE_TIME = "More time"
+PU_LESS_TIME = "Less time"
+PU_BIGGER_BASKET = "Bigger basket"
+PU_LESS_PCT = "less percentage"
+PU_MORE_PCT = "more percentage"
+PU_DOUBLE_PCT = "double percentage"
+PU_MAGNET = "magnet"
+PU_STOPWATCH = "stop watch"
+
+INSTANT_PUS = {PU_MORE_TIME, PU_LESS_TIME, PU_LESS_PCT, PU_MORE_PCT}
+TIMED_PUS = {PU_BIGGER_BASKET, PU_DOUBLE_PCT, PU_MAGNET, PU_STOPWATCH}
+
+# Optional PNG icons for powerups; provide any subset
+POWERUP_ICONS: Dict[str, str] = {
+    PU_MORE_TIME:      "pu_more_time.png",
+    PU_LESS_TIME:      "pu_less_time.png",
+    PU_BIGGER_BASKET:  "pu_bigger_basket.png",
+    PU_LESS_PCT:       "pu_less_pct.png",
+    PU_MORE_PCT:       "pu_more_pct.png",
+    PU_DOUBLE_PCT:     "pu_double_pct.png",
+    PU_MAGNET:         "pu_magnet.png",
+    PU_STOPWATCH:      "pu_stopwatch.png",
+}
+
+# Printer image file, drawn below the top bar
+PRINTER_IMAGE = "printer.png"   # replace with your art
+PRINTER_SIZE = (180, 140)       # on-screen size at 1080p
+
+# --------------------- utils ---------------------
+def draw_text_center(text, font_obj, color, surf, cx, cy):
+    img = font_obj.render(text, True, color)
+    surf.blit(img, img.get_rect(center=(cx, cy)))
+
+def load_image(path: str, size: Optional[Tuple[int, int]] = None) -> Optional[pygame.Surface]:
+    if not path or not os.path.isfile(path): return None
+    try:
+        img = pygame.image.load(path).convert_alpha()
+        if size: img = pygame.transform.smoothscale(img, size)
+        return img
+    except:
+        return None
+
+def safe_music_load_and_play(path: Optional[str]):
+    try:
+        if path and os.path.isfile(path):
+            pygame.mixer.music.load(path)
+            pygame.mixer.music.play(-1)
+        else:
+            pygame.mixer.music.stop()
+    except:
+        pygame.mixer.music.stop()
+
+def mouse_pos_virtual():
+    mx, my = pygame.mouse.get_pos()
+    vx = int(mx * VIRTUAL_W / SCREEN_W)
+    vy = int(my * VIRTUAL_H / SCREEN_H)
+    return vx, vy
+
+# --------------------- data classes ---------------------
+@dataclass
+class BgStage:
+    image_path: Optional[str] = None
+    sound_path: Optional[str] = None
+    fallback_color: Tuple[int, int, int] = (24, 24, 28)  # used if PNG missing
+
+@dataclass
+class LevelConfig:
+    name: str
+    spawn_interval_ms: int
+    fall_speed_range: Tuple[float, float]
+    printer_speed: float
+    good_prob: float
+    max_items: int
+    girl_speed: float
+    item_size: Tuple[int, int]
+    backgrounds: List[BgStage]  # len 6 for 0,20,40,60,80,100
+    time_limit_s: int = 60
+    powerup_interval_ms: int = 2400
+    powerup_drop_prob: float = 0.55
+    powerup_duration_s: float = 6.0
+    slowmo_factor: float = 0.45
+    basket_expand_px: int = 120
+    fall_scale_k: float = 1.0
+
+# --------------------- example levels ---------------------
+LEVELS: List[LevelConfig] = [
+    LevelConfig(
+        name="Level 1 • Starter",
+        spawn_interval_ms=650,
+        fall_speed_range=(220, 360),
+        printer_speed=360,
+        good_prob=0.62,
+        max_items=14,
+        girl_speed=900,
+        item_size=(36, 36),
+        backgrounds=[
+            BgStage("bg_0.png", "bg_0.ogg", (30, 30, 40)),
+            BgStage("bg_20.png",  "bg_20.ogg",  (35,45,70)),
+            BgStage("bg_40.png",  "bg_40.ogg",  (40,70,80)),
+            BgStage("bg_60.png",  "bg_60.ogg",  (50,80,60)),
+            BgStage("bg_80.png",  "bg_80.ogg",  (70,85,50)),
+            BgStage("bg_100.png", "bg_100.ogg", (100,100,100)),
+        ],
+        time_limit_s=60,
+        fall_scale_k=1.0
+    ),
+    LevelConfig(
+        name="Level 2 • Rush",
+        spawn_interval_ms=420,
+        fall_speed_range=(320, 520),
+        printer_speed=520,
+        good_prob=0.5,
+        max_items=18,
+        girl_speed=1100,
+        item_size=(34, 34),
+        backgrounds=[
+            BgStage("l2_bg_0.png",   "l2_0.ogg",   (28,20,28)),
+            BgStage("l2_bg_20.png",  "l2_20.ogg",  (38,28,52)),
+            BgStage("l2_bg_40.png",  "l2_40.ogg",  (52,38,70)),
+            BgStage("l2_bg_60.png",  "l2_60.ogg",  (40,70,60)),
+            BgStage("l2_bg_80.png",  "l2_80.ogg",  (60,88,40)),
+            BgStage("l2_bg_100.png", "l2_100.ogg", (110,110,110)),
+        ],
+        time_limit_s=75,
+        powerup_interval_ms=2000,
+        fall_scale_k=1.2
+    ),
+]
+
+# --------------------- entities ---------------------
+class Girl:
+    def __init__(self, y):
+        self.w, self.h = 96, 192  # scaled for 1080p
+        self.x = VIRTUAL_W // 2 - self.w // 2
+        self.y = y
+        self.speed = 800
+        self.frames: List[pygame.Surface] = []
+        self.frames_big: List[pygame.Surface] = []
+        self.use_big = False
+        self.frame_index = 0
+        self.anim_timer = 0.0
+        self.anim_rate = 0.12
+        self.facing_left = False
+        self._load_frames()
+
+    def _load_frames(self):
+        def fallback_pair(w, h, shade=BLUE):
+            s1 = pygame.Surface((w, h), pygame.SRCALPHA)
+            s2 = pygame.Surface((w, h), pygame.SRCALPHA)
+            pygame.draw.rect(s1, shade, s1.get_rect(), border_radius=16)
+            pygame.draw.rect(s2, shade, s2.get_rect(), border_radius=16)
+            pygame.draw.rect(s1, WHITE, pygame.Rect(16, h//2-6, w-32, 12), border_radius=6)
+            pygame.draw.rect(s2, WHITE, pygame.Rect(22, h//2-6, w-44, 12), border_radius=6)
+            return [s1, s2]
+
+        a = load_image("girl_walk1.png", (self.w, self.h))
+        b = load_image("girl_walk2.png", (self.w, self.h))
+        self.frames = [a, b] if a and b else fallback_pair(self.w, self.h, BLUE)
+
+        big_w, big_h = 96, 192
+        a2 = load_image("girl_big_walk1.png", (big_w, big_h))
+        b2 = load_image("girl_big_walk2.png", (big_w, big_h))
+        self.frames_big = [a2, b2] if a2 and b2 else fallback_pair(big_w, big_h, (70, 110, 255))
+
+    def set_speed(self, v): self.speed = v
+
+    def set_big_model(self, on: bool):
+        if on == self.use_big: return
+        self.use_big = on
+        old_bottom = self.rect().bottom
+        if on:
+            self.w, self.h = self.frames_big[0].get_width(), self.frames_big[0].get_height()
+        else:
+            self.w, self.h = self.frames[0].get_width(), self.frames[0].get_height()
+        self.y = old_bottom - self.h
+        self.x = max(0, min(VIRTUAL_W - self.w, self.x))
+
+    def update(self, dt, keys):
+        dx = 0
+        if keys[pygame.K_LEFT] or keys[pygame.K_a]: dx -= 1
+        if keys[pygame.K_RIGHT] or keys[pygame.K_d]: dx += 1
+        if dx < 0: self.facing_left = True
+        elif dx > 0: self.facing_left = False
+        self.x += dx * self.speed * dt
+        self.x = max(0, min(VIRTUAL_W - self.w, self.x))
+        if dx != 0:
+            self.anim_timer += dt
+            if self.anim_timer >= self.anim_rate:
+                self.anim_timer = 0.0
+                self.frame_index = (self.frame_index + 1) % 2
+        else:
+            self.frame_index = 0
+            self.anim_timer = 0.0
+
+    def rect(self): return pygame.Rect(int(self.x), int(self.y), self.w, self.h)
+
+    def catch_rect(self, extra_width: int = 0):
+        r = self.rect().copy()
+        if extra_width > 0:
+            r.x -= extra_width // 2
+            r.w += extra_width
+            r.x = max(0, r.x)
+            r.w = min(VIRTUAL_W - r.x, r.w)
+        return r
+
+    def draw(self, surf):
+        frame = (self.frames_big if self.use_big else self.frames)[self.frame_index]
+        if self.facing_left: frame = pygame.transform.flip(frame, True, False)
+        surf.blit(frame, (int(self.x), int(self.y)))
+
+class Printer:
+    def __init__(self, y, speed):
+        self.base_speed = speed
+        self.speed = speed
+        self.dir = random.choice([-1, 1])
+        self.image = load_image(PRINTER_IMAGE, PRINTER_SIZE)
+        self.w, self.h = PRINTER_SIZE if self.image is None else (self.image.get_width(), self.image.get_height())
+        self.x = VIRTUAL_W // 2 - self.w // 2
+        # below the top bar so it is visible over background
+        self.y = y
+        if self.image is None:
+            self.surface = pygame.Surface((self.w, self.h), pygame.SRCALPHA)
+            pygame.draw.rect(self.surface, GRAY, self.surface.get_rect(), border_radius=16)
+        else:
+            self.surface = None
+
+    def set_speed(self, v): self.base_speed = v; self.speed = v
+    def apply_slowmo(self, factor: float): self.speed = self.base_speed * factor
+    def clear_slowmo(self): self.speed = self.base_speed
+
+    def update(self, dt):
+        self.x += self.dir * self.speed * dt
+        if self.x <= 0: self.x, self.dir = 0, 1
+        if self.x + self.w >= VIRTUAL_W: self.x, self.dir = VIRTUAL_W - self.w, -1
+        if random.random() < 0.004: self.dir *= -1
+
+    def rect(self): return pygame.Rect(int(self.x), int(self.y), self.w, self.h)
+    def centerx(self): return self.x + self.w * 0.5
+    def slot_y(self): return self.y + self.h  # drop mouth at bottom center
+    def draw(self, surf):
+        if self.image: surf.blit(self.image, (int(self.x), int(self.y)))
+        else: surf.blit(self.surface, (int(self.x), int(self.y)))
+
+class Item:
+    def __init__(self, x, y, vy, size, good: bool):
+        self.x, self.y = x, y
+        self.base_vy = vy
+        self.vy = vy
+        self.w, self.h = size
+        self.good = good
+        self.color = GREEN if good else RED
+
+    def apply_slowmo(self, factor: float): self.vy = self.base_vy * factor
+    def clear_slowmo(self): self.vy = self.base_vy
+    def apply_progress_scale(self, scale: float): self.vy = self.base_vy * scale
+
+    def update(self, dt, magnet_to_x: Optional[float] = None, magnet_power: float = 0.0):
+        if magnet_to_x is not None and magnet_power > 0.0:
+            dx = magnet_to_x - self.x
+            self.x += dx * magnet_power * dt
+        self.y += self.vy * dt
+
+    def rect(self): return pygame.Rect(int(self.x - self.w//2), int(self.y - self.h//2), self.w, self.h)
+
+    def draw(self, surf):
+        r = self.rect()
+        pygame.draw.rect(surf, self.color, r, border_radius=10)
+        if self.good:
+            pygame.draw.line(surf, WHITE, (r.left+8, r.centery), (r.centerx-2, r.bottom-8), 4)
+            pygame.draw.line(surf, WHITE, (r.centerx-2, r.bottom-8), (r.right-8, r.top+8), 4)
+        else:
+            pygame.draw.line(surf, WHITE, (r.left+8, r.top+8), (r.right-8, r.bottom-8), 4)
+            pygame.draw.line(surf, WHITE, (r.right-8, r.top+8), (r.left-8+r.w, r.bottom-8), 4)
+
+class PowerUpDrop:
+    ICON_SIZE = (40, 40)
+    def __init__(self, x, y, vy, kind: str):
+        self.x, self.y, self.vy = x, y, vy
+        self.kind = kind
+        self.w, self.h = 44, 44
+        self.icon = load_image(POWERUP_ICONS.get(kind, ""), self.ICON_SIZE)
+
+    def update(self, dt): self.y += self.vy * dt
+    def rect(self): return pygame.Rect(int(self.x - self.w//2), int(self.y - self.h//2), self.w, self.h)
+
+    def draw(self, surf):
+        r = self.rect()
+        if self.icon:
+            surf.blit(self.icon, (r.x + (r.w - self.ICON_SIZE[0])//2, r.y + (r.h - self.ICON_SIZE[1])//2))
+        else:
+            col = {
+                PU_MORE_TIME: GREEN, PU_LESS_TIME: RED, PU_BIGGER_BASKET: GOLD,
+                PU_LESS_PCT: MAGENTA, PU_MORE_PCT: CYAN, PU_DOUBLE_PCT: ORANGE,
+                PU_MAGNET: (100, 200, 255), PU_STOPWATCH: PURPLE
+            }.get(self.kind, YELLOW)
+            pygame.draw.rect(surf, col, r, border_radius=10)
+            short = {
+                PU_MORE_TIME: "+5s", PU_LESS_TIME: "-5s", PU_BIGGER_BASKET: "B",
+                PU_LESS_PCT: "-2%", PU_MORE_PCT: "+5%", PU_DOUBLE_PCT: "x2",
+                PU_MAGNET: "M", PU_STOPWATCH: "S"
+            }.get(self.kind, "?")
+            draw_text_center(short, FONT_TINY, BLACK, surf, r.centerx, r.centery)
+
+# --------------------- game core ---------------------
+class Game:
+    def __init__(self):
+        self.state = "MAIN_MENU"
+        self.level_index = 0
+        self.level = LEVELS[0]
+
+        self.progress = 50
+        self.time_left = self.level.time_limit_s
+        self.items: List[Item] = []
+        self.powerups: List[PowerUpDrop] = []
+        self.active_timers: Dict[str, float] = {}
+        self.double_gain = False
+        self.magnet = False
+        self.slowmo = False
+
+        self.spawn_timer = 0.0
+        self.powerup_timer = 0.0
+
+        self.girl = Girl(VIRTUAL_H - 160)
+        self.girl.set_speed(self.level.girl_speed)
+        self.printer = Printer(TOP_BAR_H + 8, self.level.printer_speed)
+
+        self.caught_good = 0
+        self.caught_bad = 0
+        self.result_text = ""
+        self.mouse_down_last = False
+
+        # background caching
+        self.bg_images: List[Optional[pygame.Surface]] = [None]*6
+        self.bg_stage_index = -1
+        self.load_bg_assets()
+        self.update_bg_stage(force=True)
+
+    # ---------- backgrounds ----------
+    def load_bg_assets(self):
+        self.bg_images = []
+        for stage in self.level.backgrounds:
+            img = load_image(stage.image_path, (VIRTUAL_W, VIRTUAL_H)) if stage.image_path else None
+            self.bg_images.append(img)
+
+    def get_stage_index_for_progress(self) -> int:
+        thresholds = [0, 20, 40, 60, 80, 100]
+        idx = 0
+        for i, t in enumerate(thresholds):
+            if self.progress >= t: idx = i
+        return idx
+
+    def update_bg_stage(self, force=False):
+        idx = self.get_stage_index_for_progress()
+        if force or idx != self.bg_stage_index:
+            self.bg_stage_index = idx
+            stage = self.level.backgrounds[idx]
+            safe_music_load_and_play(stage.sound_path)
+
+    def draw_background(self, surf):
+        idx = self.get_stage_index_for_progress()
+        img = self.bg_images[idx]
+        if img:
+            surf.blit(img, (0, 0))
+        else:
+            surf.fill(self.level.backgrounds[idx].fallback_color)
+
+    # ---------- helpers ----------
+    def reset_level_runtime(self):
+        self.progress = 50
+        self.time_left = self.level.time_limit_s
+        self.items.clear()
+        self.powerups.clear()
+        self.active_timers.clear()
+        self.double_gain = False
+        self.magnet = False
+        self.slowmo = False
+        self.spawn_timer = 0.0
+        self.powerup_timer = 0.0
+        self.girl = Girl(VIRTUAL_H - 160)
+        self.girl.set_speed(self.level.girl_speed)
+        self.girl.set_big_model(False)
+        self.printer = Printer(TOP_BAR_H + 8, self.level.printer_speed)
+        self.caught_good = 0
+        self.caught_bad = 0
+        self.result_text = ""
+        self.load_bg_assets()
+        self.bg_stage_index = -1
+        self.update_bg_stage(force=True)
+
+    def progress_fall_scale(self) -> float:
+        k = self.level.fall_scale_k
+        return 1.0 + k * (max(0, min(100, self.progress)) / 100.0)
+
+    def _activate(self, kind: str, duration: float):
+        self.active_timers[kind] = duration
+        if kind == PU_DOUBLE_PCT:
+            self.double_gain = True
+        elif kind == PU_BIGGER_BASKET:
+            self.girl.set_big_model(True)
+        elif kind == PU_MAGNET:
+            self.magnet = True
+        elif kind == PU_STOPWATCH:
+            self.slowmo = True
+            self._apply_slowmo(True)
+
+    def _deactivate(self, kind: str):
+        if kind in self.active_timers: del self.active_timers[kind]
+        if kind == PU_DOUBLE_PCT:
+            self.double_gain = False
+        elif kind == PU_BIGGER_BASKET:
+            self.girl.set_big_model(False)
+        elif kind == PU_MAGNET:
+            self.magnet = False
+        elif kind == PU_STOPWATCH:
+            self.slowmo = False
+            self._apply_slowmo(False)
+
+    def _apply_slowmo(self, on: bool):
+        if on:
+            factor = self.level.slowmo_factor
+            self.printer.apply_slowmo(factor)
+            for it in self.items: it.apply_slowmo(factor)
+        else:
+            self.printer.clear_slowmo()
+            for it in self.items: it.clear_slowmo()
+
+    # ---------- spawning ----------
+    def spawn_item(self):
+        if len(self.items) >= self.level.max_items: return
+        good = random.random() < self.level.good_prob
+        base_vy = random.uniform(*self.level.fall_speed_range)
+        vy = base_vy * self.progress_fall_scale()
+        if self.slowmo: vy *= self.level.slowmo_factor
+        x = self.printer.centerx()
+        y = self.printer.slot_y()
+        it = Item(x, y+10, vy, self.level.item_size, good)
+        it.base_vy = base_vy
+        it.apply_progress_scale(self.progress_fall_scale() * (self.level.slowmo_factor if self.slowmo else 1.0))
+        self.items.append(it)
+
+    def spawn_powerup(self):
+        kinds = [PU_MORE_TIME, PU_LESS_TIME, PU_BIGGER_BASKET, PU_LESS_PCT, PU_MORE_PCT, PU_DOUBLE_PCT, PU_MAGNET, PU_STOPWATCH]
+        base_vy = random.uniform(*self.level.fall_speed_range) * 0.9
+        vy = base_vy * self.progress_fall_scale()
+        if self.slowmo: vy *= self.level.slowmo_factor
+        x = self.printer.centerx()
+        y = self.printer.slot_y()
+        self.powerups.append(PowerUpDrop(x, y+12, vy, random.choice(kinds)))
+
+    # ---------- powerup apply ----------
+    def apply_powerup(self, kind: str):
+        dur = float(self.level.powerup_duration_s)
+        if kind == PU_MORE_TIME:
+            self.time_left += 5.0
+            self.active_timers[kind] = 1.0
+        elif kind == PU_LESS_TIME:
+            self.time_left = max(0.0, self.time_left - 5.0)
+            self.active_timers[kind] = 1.0
+        elif kind == PU_BIGGER_BASKET:
+            self._activate(PU_BIGGER_BASKET, dur)
+        elif kind == PU_LESS_PCT:
+            self.progress = max(0, self.progress - 2)
+            self.active_timers[kind] = 1.0
+        elif kind == PU_MORE_PCT:
+            self.progress = min(100, self.progress + 5)
+            self.active_timers[kind] = 1.0
+        elif kind == PU_DOUBLE_PCT:
+            self._activate(PU_DOUBLE_PCT, 5.0)  # fixed 5 seconds
+        elif kind == PU_MAGNET:
+            self._activate(PU_MAGNET, dur)
+        elif kind == PU_STOPWATCH:
+            self._activate(PU_STOPWATCH, dur)
+
+    # ---------- input ----------
+    def handle_click(self, rects_with_actions):
+        mouse = mouse_pos_virtual()
+        mouse_pressed = pygame.mouse.get_pressed()[0]
+        clicked = False
+        if self.mouse_down_last and not mouse_pressed:
+            for r, action in rects_with_actions:
+                if r.collidepoint(mouse):
+                    action(); clicked = True; break
+        self.mouse_down_last = mouse_pressed
+        return clicked
+
+    # ---------- UI drawing ----------
+    def draw_top_bar(self, surf):
+        pygame.draw.rect(surf, BLACK, pygame.Rect(0, 0, VIRTUAL_W, TOP_BAR_H))
+
+        # progress bar
+        bar_w, bar_h = 700, 28
+        x = 24; y = (TOP_BAR_H - bar_h)//2
+        pygame.draw.rect(surf, WHITE, pygame.Rect(x-2, y-2, bar_w+4, bar_h+4), border_radius=12)
+        pct = max(0, min(100, self.progress)) / 100.0
+        fill_w = int(bar_w * pct)
+        fill_col = GREEN if self.progress >= 50 else YELLOW
+        pygame.draw.rect(surf, fill_col, pygame.Rect(x, y, fill_w, bar_h), border_radius=12)
+        draw_text_center(f"{self.progress}%", FONT_SM, BLACK, surf, x + bar_w//2, y + bar_h//2)
+
+        # timer
+        t = max(0, int(self.time_left))
+        mins, secs = t // 60, t % 60
+        draw_text_center(f"{mins:01d}:{secs:02d}", FONT_BIG, WHITE, surf, x + bar_w + 180, TOP_BAR_H//2)
+
+        # powerup badges right
+        badge_x = VIRTUAL_W - 16
+        for kind, seconds in sorted(self.active_timers.items()):
+            if kind in INSTANT_PUS and seconds <= 0: continue
+            w, h = 44, 44
+            r = pygame.Rect(badge_x - w, TOP_BAR_H//2 - h//2, w, h)
+            icon = load_image(POWERUP_ICONS.get(kind, ""), (w, h))
+            if icon: surf.blit(icon, r.topleft)
+            else:
+                col = {
+                    PU_MORE_TIME: GREEN, PU_LESS_TIME: RED, PU_BIGGER_BASKET: GOLD,
+                    PU_LESS_PCT: MAGENTA, PU_MORE_PCT: CYAN, PU_DOUBLE_PCT: ORANGE,
+                    PU_MAGNET: (100, 200, 255), PU_STOPWATCH: PURPLE
+                }.get(kind, YELLOW)
+                pygame.draw.rect(surf, col, r, border_radius=10)
+                short = {
+                    PU_MORE_TIME: "+5s", PU_LESS_TIME: "-5s", PU_BIGGER_BASKET: "B",
+                    PU_LESS_PCT: "-2", PU_MORE_PCT: "+5", PU_DOUBLE_PCT: "x2",
+                    PU_MAGNET: "M", PU_STOPWATCH: "S"
+                }.get(kind, "?")
+                draw_text_center(short, FONT_SM, BLACK, surf, r.centerx, r.centery)
+            # countdown label
+            label = f"{seconds:.1f}s" if kind in TIMED_PUS else f"{seconds:.1f}s"
+            txt = FONT_TINY.render(label, True, WHITE)
+            surf.blit(txt, (r.centerx - txt.get_width()//2, r.bottom + 2))
+            badge_x -= w + 10
+
+    # ---------- core loop ----------
+    def update_playing(self, dt):
+        # timer
+        self.time_left -= dt
+        if self.time_left <= 0:
+            self.time_left = 0
+            self.result_text = "Time up"
+            self.state = "GAME_OVER"
+            return
+
+        # stage change by progress
+        self.update_bg_stage(force=False)
+
+        # tick powerups
+        expired = []
+        for kind in list(self.active_timers.keys()):
+            self.active_timers[kind] -= dt
+            if self.active_timers[kind] <= 0: expired.append(kind)
+        for k in expired: self._deactivate(k)
+
+        keys = pygame.key.get_pressed()
+        self.girl.update(dt, keys)
+        self.printer.update(dt)
+
+        # spawn
+        self.spawn_timer += dt * 1000
+        if self.spawn_timer >= self.level.spawn_interval_ms:
+            self.spawn_timer = 0
+            self.spawn_item()
+
+        self.powerup_timer += dt * 1000
+        if self.powerup_timer >= self.level.powerup_interval_ms:
+            self.powerup_timer = 0
+            if random.random() < self.level.powerup_drop_prob:
+                self.spawn_powerup()
+
+        # rescale item velocities with current progress and slowmo
+        scale_now = self.progress_fall_scale() * (self.level.slowmo_factor if self.slowmo else 1.0)
+        for it in self.items:
+            it.apply_progress_scale(scale_now)
+
+        # collisions
+        extra = self.level.basket_expand_px if self.girl.use_big else 0
+        catch_rect = self.girl.catch_rect(extra)
+        magnet_target_x = self.girl.rect().centerx if self.magnet else None
+        magnet_power = 4.5 if self.magnet else 0.0
+
+        # items
+        for it in list(self.items):
+            it.update(dt, magnet_target_x, magnet_power)
+            if it.rect().colliderect(catch_rect):
+                if it.good:
+                    gain = 1
+                    if self.double_gain: gain *= 2
+                    self.progress = min(100, self.progress + gain)
+                    self.caught_good += 1
+                else:
+                    self.progress = max(0, self.progress - 1)
+                    self.caught_bad += 1
+                self.items.remove(it)
+            elif it.y - it.h > VIRTUAL_H:
+                if it.good:
+                    self.progress = max(0, self.progress - 1)  # penalty for missed good fruit
+                self.items.remove(it)
+
+        # powerups
+        for pu in list(self.powerups):
+            pu.update(dt)
+            if pu.rect().colliderect(catch_rect):
+                self.apply_powerup(pu.kind)
+                self.powerups.remove(pu)
+            elif pu.y - pu.h > VIRTUAL_H:
+                self.powerups.remove(pu)
+
+        # percent win or lose
+        if self.progress <= 0:
+            self.result_text = "Level failed, hit 0%"
+            self.state = "GAME_OVER"
+        elif self.progress >= 100:
+            self.result_text = "Level complete, hit 100%"
+            self.state = "GAME_OVER"
+
+    # ---------- screens ----------
+    def draw_playing(self, surf):
+        self.draw_background(surf)
+        self.draw_top_bar(surf)
+        self.printer.draw(surf)
+        for it in self.items: it.draw(surf)
+        for pu in self.powerups: pu.draw(surf)
+        self.girl.draw(surf)
+
+        hud = f"Good {self.caught_good}  Bad {self.caught_bad}  Level {self.level.name}"
+        txt = FONT_SM.render(hud, True, WHITE)
+        surf.blit(txt, (24, VIRTUAL_H - 48))
+
+        # Quit button
+        back_rect = pygame.Rect(VIRTUAL_W - 160, VIRTUAL_H - 64, 136, 44)
+        pygame.draw.rect(surf, BLACK, back_rect, border_radius=12)
+        draw_text_center("Quit", FONT_MED, WHITE, surf, back_rect.centerx, back_rect.centery)
+        self.handle_click([(back_rect, self.to_level_select)])
+
+    def to_level_select(self):
+        self.state = "LEVEL_SELECT"
+        self.items.clear()
+        self.powerups.clear()
+        self.active_timers.clear()
+        self._apply_slowmo(False)
+        pygame.mixer.music.stop()
+
+    def to_main_menu(self):
+        self.state = "MAIN_MENU"
+        pygame.mixer.music.stop()
+
+    def start_level(self, idx):
+        self.level_index = idx
+        self.level = LEVELS[idx]
+        self.reset_level_runtime()
+        self.state = "PLAYING"
+
+    def draw_main_menu(self, surf):
+        surf.fill((24, 24, 28))
+        draw_text_center("Catch Progress", FONT_XL, WHITE, surf, VIRTUAL_W//2, VIRTUAL_H//2 - 180)
+        play_rect = pygame.Rect(VIRTUAL_W//2 - 180, VIRTUAL_H//2 - 40, 360, 84)
+        quit_rect = pygame.Rect(VIRTUAL_W//2 - 180, VIRTUAL_H//2 + 70, 360, 70)
+        pygame.draw.rect(surf, GREEN, play_rect, border_radius=18)
+        pygame.draw.rect(surf, RED, quit_rect, border_radius=18)
+        draw_text_center("Play", FONT_BIG, BLACK, surf, play_rect.centerx, play_rect.centery)
+        draw_text_center("Quit", FONT_MED, WHITE, surf, quit_rect.centerx, quit_rect.centery)
+        def go_play(): self.state = "LEVEL_SELECT"
+        def go_quit(): pygame.quit(); sys.exit(0)
+        self.handle_click([(play_rect, go_play), (quit_rect, go_quit)])
+        draw_text_center("Move with arrows or A D", FONT_MED, WHITE, surf, VIRTUAL_W//2, VIRTUAL_H - 60)
+
+    def draw_level_select(self, surf):
+        surf.fill((18, 20, 28))
+        draw_text_center("Select Level", FONT_XL, WHITE, surf, VIRTUAL_W//2, 140)
+        back_rect = pygame.Rect(40, 40, 200, 64)
+        pygame.draw.rect(surf, GRAY, back_rect, border_radius=14)
+        draw_text_center("Back", FONT_MED, WHITE, surf, back_rect.centerx, back_rect.centery)
+        start_y, gap = 260, 22
+        btn_w, btn_h = 1100, 96
+        rects = [(back_rect, self.to_main_menu)]
+        for i, lvl in enumerate(LEVELS):
+            r = pygame.Rect(VIRTUAL_W//2 - btn_w//2, start_y + i*(btn_h + gap), btn_w, btn_h)
+            pygame.draw.rect(surf, YELLOW, r, border_radius=18)
+            label = f"{i+1}. {lvl.name} • time {lvl.time_limit_s}s • good {int(lvl.good_prob*100)}%"
+            draw_text_center(label, FONT_MED, BLACK, surf, r.centerx, r.centery)
+            rects.append((r, lambda idx=i: self.start_level(idx)))
+        self.handle_click(rects)
+
+    def draw_game_over(self, surf):
+        surf.fill((14, 14, 20))
+        draw_text_center(self.result_text, FONT_XL, WHITE, surf, VIRTUAL_W//2, VIRTUAL_H//2 - 180)
+        stats = f"Good {self.caught_good}  Bad {self.caught_bad}  Final {self.progress}%"
+        draw_text_center(stats, FONT_BIG, WHITE, surf, VIRTUAL_W//2, VIRTUAL_H//2 - 60)
+        again_rect = pygame.Rect(VIRTUAL_W//2 - 380, VIRTUAL_H//2 + 20, 320, 84)
+        menu_rect = pygame.Rect(VIRTUAL_W//2 + 60, VIRTUAL_H//2 + 20, 320, 84)
+        pygame.draw.rect(surf, GREEN, again_rect, border_radius=18)
+        pygame.draw.rect(surf, YELLOW, menu_rect, border_radius=18)
+        draw_text_center("Retry", FONT_BIG, BLACK, surf, again_rect.centerx, again_rect.centery)
+        draw_text_center("Level Select", FONT_BIG, BLACK, surf, menu_rect.centerx, menu_rect.centery)
+        def retry(): self.start_level(self.level_index)
+        def to_menu(): self.state = "LEVEL_SELECT"
+        self.handle_click([(again_rect, retry), (menu_rect, to_menu)])
+
+    # ---------- main run ----------
+    def run(self):
+        global SCREEN, SCREEN_W, SCREEN_H
+        while True:
+            dt = CLOCK.tick(FPS) / 1000.0
+            events = pygame.event.get()
+            for e in events:
+                if e.type == pygame.QUIT:
+                    pygame.quit(); sys.exit(0)
+                if e.type == pygame.KEYDOWN:
+                    if e.key == pygame.K_ESCAPE:
+                        if self.state == "PLAYING": self.state = "LEVEL_SELECT"; pygame.mixer.music.stop()
+                        elif self.state == "LEVEL_SELECT": self.state = "MAIN_MENU"
+                        elif self.state == "GAME_OVER": self.state = "LEVEL_SELECT"
+                    if e.key == pygame.K_F11:
+                        # toggle fullscreen while preserving scaling
+                        flags = SCREEN.get_flags()
+                        if flags & pygame.FULLSCREEN:
+                            SCREEN = pygame.display.set_mode((1280, 720), pygame.RESIZABLE)
+                        else:
+                            SCREEN = make_fullscreen()
+                        SCREEN_W, SCREEN_H = SCREEN.get_size()
+
+            # draw to virtual canvas
+            GAME_SURF.fill((0, 0, 0, 0))
+            if self.state == "MAIN_MENU":
+                self.draw_main_menu(GAME_SURF)
+            elif self.state == "LEVEL_SELECT":
+                self.draw_level_select(GAME_SURF)
+            elif self.state == "PLAYING":
+                self.update_playing(dt)
+                self.draw_playing(GAME_SURF)
+            elif self.state == "GAME_OVER":
+                self.draw_game_over(GAME_SURF)
+
+            # scale to real screen
+            pygame.transform.smoothscale(GAME_SURF, (SCREEN_W, SCREEN_H), SCREEN)
+            pygame.display.flip()
+
+# --------------------- entry ---------------------
+if __name__ == "__main__":
+    Game().run()
