@@ -284,7 +284,7 @@ LEVELS: List[LevelConfig] = [
             BgStage("special_bg_0.png",   "bg_40.mp3",   (16,16,20)),
             BgStage("special_bg_20.png",  "bg_40.mp3",  (24,28,44)),
             BgStage("special_bg_40.png",  "bg_40.mp3",  (36,40,60)),
-            BgStage("special_bg_60.png",  "bg_60.mp3",  (42,64,60)),
+            BgStage("special_bg_80.png", "bg_60.mp3", (42, 64, 60)),
             BgStage("special_bg_80.png",  "bg_80.mp3",  (56,84,58)),
             BgStage("special_bg_100.png", "bg_100.mp3", (120,120,120)),
         ],
