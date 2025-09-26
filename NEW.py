@@ -638,7 +638,7 @@ class Game:
         if self.slowmo: vy *= self.level.slowmo_factor
         x = self.printer.centerx()
         y = self.printer.slot_y()
-
+        # yeah
         # pick sprite from shared lists
         if good and GOOD_ITEM_FILES:
             sprite_path = random.choice(GOOD_ITEM_FILES)
