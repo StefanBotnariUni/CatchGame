@@ -8,7 +8,7 @@ from typing import List, Tuple, Optional, Dict
 # --------------------- init ---------------------
 pygame.init()
 pygame.mixer.init()
-pygame.display.set_caption("EcoNomNom")
+pygame.display.set_caption("Polutio")
 
 # Virtual game resolution
 VIRTUAL_W, VIRTUAL_H = 1920, 1080
@@ -81,6 +81,7 @@ PRINTER_SIZE = (180, 140)
 GOOD_ITEM_FILES = ["good1.png", "good2.png", "good3.png", "good4.png", "good5.png"]
 BAD_ITEM_FILES  = ["bad1.png",  "bad2.png",  "bad3.png",  "bad4.png",  "bad5.png"]
 
+
 _ITEM_IMG_CACHE: Dict[Tuple[str, Tuple[int,int]], Optional[pygame.Surface]] = {}
 
 def get_item_image(path: str, size: Tuple[int, int]) -> Optional[pygame.Surface]:
@@ -113,6 +114,10 @@ def load_image(path: str, size: Optional[Tuple[int, int]] = None) -> Optional[py
         return img
     except:
         return None
+
+# main menu background
+MAIN_MENU_BG = "menu_bg.png"  # drop a 1920x1080 png next to the script
+MAIN_MENU_BG_IMG = load_image(MAIN_MENU_BG, (VIRTUAL_W, VIRTUAL_H))
 
 def safe_music_load_and_play(path: Optional[str]):
     try:
@@ -168,12 +173,12 @@ LEVELS: List[LevelConfig] = [
         girl_speed=900,
         item_size=(50, 50),
         backgrounds=[
-            BgStage("bg_0.png", "bg_0.ogg", (30, 30, 40)),
-            BgStage("bg_20.png",  "bg_20.ogg",  (35,45,70)),
-            BgStage("bg_40.png",  "bg_40.ogg",  (40,70,80)),
-            BgStage("bg_60.png",  "bg_60.ogg",  (50,80,60)),
-            BgStage("bg_80.png",  "bg_80.ogg",  (70,85,50)),
-            BgStage("bg_100.png", "bg_100.ogg", (100,100,100)),
+            BgStage("bg_0.png", "bg_40.mp3", (30, 30, 40)),
+            BgStage("bg_20.png",  "bg_40.mp3",  (35,45,70)),
+            BgStage("bg_40.png",  "bg_40.mp3",  (40,70,80)),
+            BgStage("bg_60.png",  "bg_60.mp3",  (50,80,60)),
+            BgStage("bg_80.png",  "bg_80.mp3",  (70,85,50)),
+            BgStage("bg_100.png", "bg_100.mp3", (100,100,100)),
         ],
         time_limit_s=60,
         fall_scale_k=1.0
@@ -188,12 +193,12 @@ LEVELS: List[LevelConfig] = [
         girl_speed=1100,
         item_size=(50, 50),
         backgrounds=[
-            BgStage("l2_bg_0.png",   "l2_0.ogg",   (28,20,28)),
-            BgStage("l2_bg_20.png",  "l2_20.ogg",  (38,28,52)),
-            BgStage("l2_bg_40.png",  "l2_40.ogg",  (52,38,70)),
-            BgStage("l2_bg_60.png",  "l2_60.ogg",  (40,70,60)),
-            BgStage("l2_bg_80.png",  "l2_80.ogg",  (60,88,40)),
-            BgStage("l2_bg_100.png","l2_100.ogg", (110,110,110)),
+            BgStage("l2_bg_0.png",   "bg_40.mp3",   (28,20,28)),
+            BgStage("l2_bg_20.png",  "bg_40.mp3",  (38,28,52)),
+            BgStage("l2_bg_40.png",  "bg_40.mp3",  (52,38,70)),
+            BgStage("l2_bg_60.png",  "bg_60.mp3",  (40,70,60)),
+            BgStage("l2_bg_80.png",  "bg_80.mp3",  (60,88,40)),
+            BgStage("l2_bg_100.png","bg_100.mp3", (110,110,110)),
         ],
         time_limit_s=75,
         powerup_interval_ms=2000,
@@ -210,12 +215,12 @@ LEVELS: List[LevelConfig] = [
         girl_speed=1200,
         item_size=(50, 50),
         backgrounds=[
-            BgStage("l3_bg_0.png",   "l3_0.ogg",   (22,26,34)),
-            BgStage("l3_bg_20.png",  "l3_20.ogg",  (30,34,62)),
-            BgStage("l3_bg_40.png",  "l3_40.ogg",  (44,54,82)),
-            BgStage("l3_bg_60.png",  "l3_60.ogg",  (40,72,70)),
-            BgStage("l3_bg_80.png",  "l3_80.ogg",  (70,90,52)),
-            BgStage("l3_bg_100.png", "l3_100.ogg", (120,120,120)),
+            BgStage("l3_bg_0.png",   "bg_40.mp3",   (22,26,34)),
+            BgStage("l3_bg_20.png",  "bg_40.mp3",  (30,34,62)),
+            BgStage("l3_bg_40.png",  "bg_40.mp3",  (44,54,82)),
+            BgStage("l3_bg_60.png",  "bg_60.mp3",  (40,72,70)),
+            BgStage("l3_bg_80.png",  "bg_80.mp3",  (70,90,52)),
+            BgStage("l3_bg_100.png", "bg_100.mp3", (120,120,120)),
         ],
         time_limit_s=80,
         powerup_interval_ms=1900,
@@ -232,12 +237,12 @@ LEVELS: List[LevelConfig] = [
         girl_speed=1300,
         item_size=(50, 50),
         backgrounds=[
-            BgStage("l4_bg_0.png",   "l4_0.ogg",   (16,18,28)),
-            BgStage("l4_bg_20.png",  "l4_20.ogg",  (28,26,58)),
-            BgStage("l4_bg_40.png",  "l4_40.ogg",  (46,36,70)),
-            BgStage("l4_bg_60.png",  "l4_60.ogg",  (44,70,66)),
-            BgStage("l4_bg_80.png",  "l4_80.ogg",  (68,92,56)),
-            BgStage("l4_bg_100.png", "l4_100.ogg", (140,140,140)),
+            BgStage("l4_bg_0.png",   "bg_40.mp3",   (16,18,28)),
+            BgStage("l4_bg_20.png",  "bg_40.mp3",  (28,26,58)),
+            BgStage("l4_bg_40.png",  "bg_40.mp3",  (46,36,70)),
+            BgStage("l4_bg_60.png",  "bg_60.mp3",  (44,70,66)),
+            BgStage("l4_bg_80.png",  "bg_80.mp3",  (68,92,56)),
+            BgStage("l4_bg_100.png", "bg_100.mp3", (140,140,140)),
         ],
         time_limit_s=85,
         powerup_interval_ms=1800,
@@ -254,12 +259,12 @@ LEVELS: List[LevelConfig] = [
         girl_speed=1400,
         item_size=(50, 50),
         backgrounds=[
-            BgStage("l5_bg_0.png",   "l5_0.ogg",   (12,12,22)),
-            BgStage("l5_bg_20.png",  "l5_20.ogg",  (24,22,48)),
-            BgStage("l5_bg_40.png",  "l5_40.ogg",  (40,30,66)),
-            BgStage("l5_bg_60.png",  "l5_60.ogg",  (36,68,66)),
-            BgStage("l5_bg_80.png",  "l5_80.ogg",  (66,94,60)),
-            BgStage("l5_bg_100.png", "l5_100.ogg", (160,160,160)),
+            BgStage("l5_bg_0.png",   "bg_40.mp3",   (12,12,22)),
+            BgStage("l5_bg_20.png",  "bg_40.mp3",  (24,22,48)),
+            BgStage("l5_bg_40.png",  "bg_40.mp3",  (40,30,66)),
+            BgStage("l5_bg_60.png",  "bg_60.mp3",  (36,68,66)),
+            BgStage("l5_bg_80.png",  "bg_80.mp3",  (66,94,60)),
+            BgStage("l5_bg_100.png", "bg_100.mp3", (160,160,160)),
         ],
         time_limit_s=90,
         powerup_interval_ms=1700,
@@ -276,12 +281,12 @@ LEVELS: List[LevelConfig] = [
         girl_speed=1100,                       # not used
         item_size=(70, 70),                    # visual scaling for special
         backgrounds=[
-            BgStage("special_bg_0.png",   "special_0.ogg",   (16,16,20)),
-            BgStage("special_bg_20.png",  "special_20.ogg",  (24,28,44)),
-            BgStage("special_bg_40.png",  "special_40.ogg",  (36,40,60)),
-            BgStage("special_bg_60.png",  "special_60.ogg",  (42,64,60)),
-            BgStage("special_bg_80.png",  "special_80.ogg",  (56,84,58)),
-            BgStage("special_bg_100.png", "special_100.ogg", (120,120,120)),
+            BgStage("special_bg_0.png",   "bg_40.mp3",   (16,16,20)),
+            BgStage("special_bg_20.png",  "bg_40.mp3",  (24,28,44)),
+            BgStage("special_bg_40.png",  "bg_40.mp3",  (36,40,60)),
+            BgStage("special_bg_60.png",  "bg_60.mp3",  (42,64,60)),
+            BgStage("special_bg_80.png",  "bg_80.mp3",  (56,84,58)),
+            BgStage("special_bg_100.png", "bg_100.mp3", (120,120,120)),
         ],
         time_limit_s=60,
         powerup_interval_ms=0,
@@ -1015,8 +1020,10 @@ class Game:
             self.state = "PLAYING"
 
     def draw_main_menu(self, surf):
-        surf.fill((24, 24, 28))
-        draw_text_center("Pollutio", FONT_XL, WHITE, surf, VIRTUAL_W//2, VIRTUAL_H//2 - 180)
+        if MAIN_MENU_BG_IMG:
+            surf.blit(MAIN_MENU_BG_IMG, (0, 0))
+        else:
+            surf.fill((24, 24, 28))  # fallback color if file missing
         play_rect = pygame.Rect(VIRTUAL_W//2 - 180, VIRTUAL_H//2 - 40, 360, 84)
         quit_rect = pygame.Rect(VIRTUAL_W//2 - 180, VIRTUAL_H//2 + 70, 360, 70)
         pygame.draw.rect(surf, GREEN, play_rect, border_radius=18)
